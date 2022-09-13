@@ -8,7 +8,6 @@ use image::ImageBuffer;
 use image::ImageFormat;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::WebGlTexture;
 use web_sys::{WebGl2RenderingContext, WebGlProgram, WebGlShader};
 
 extern crate console_error_panic_hook;
@@ -49,9 +48,7 @@ macro_rules! console_log {
 }
 
 struct App {
-    pub position: Vec<f32>,
-    pub tex1: Option<WebGlTexture>,
-    pub tex2: Option<WebGlTexture>
+    position: Vec<f32>
 }
 
 #[wasm_bindgen(start)]
@@ -72,18 +69,11 @@ pub fn start() -> Result<(), JsValue> {
         &context,
         WebGl2RenderingContext::VERTEX_SHADER,
         r##"#version 300 es
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec3 aColor;
-        layout (location = 2) in vec2 aTexCoord;
-        
-        out vec3 ourColor;
-        out vec2 TexCoord;
-        
-        void main()
-        {
-            gl_Position = vec4(aPos, 1.0);
-            ourColor = aColor;
-            TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+ 
+        in vec4 position;
+
+        void main() {
+            gl_Position = position;
         }
         "##,
     )?;
@@ -99,91 +89,47 @@ pub fn start() -> Result<(), JsValue> {
 
         in vec2 TexCoord;
 
-        // texture samplers
         uniform sampler2D texture1;
-        uniform sampler2D texture2;
-
-        void main()
-        {
-            outColor = mix(texture(texture1, TexCoord), texture(texture2, TexCoord), 0.2);
+        
+        void main() {
+            outColor = texture(texture1, TexCoord);
         }
         "##,
     )?;
     let program = link_program(&context, &vert_shader, &frag_shader)?;
     context.use_program(Some(&program));
-
-    let mut tex1: Option<WebGlTexture> = None;
-    let mut tex2: Option<WebGlTexture> = None;
-
-    {
-    tex1 = context.create_texture();
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, tex1.as_ref());
+    let tex = context.create_texture();
+    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, Some(&tex.unwrap()));
     context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::REPEAT.try_into().unwrap());
     context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::REPEAT.try_into().unwrap());
 
     context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR.try_into().unwrap());
     context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR.try_into().unwrap());
 
-    
-        let bytes = include_bytes!("../container.jpg");
+    let bytes = include_bytes!("../container.jpg");
 
-        match image::load_from_memory_with_format(bytes, ImageFormat::Jpeg) {
-            Ok(img) => {
+    match image::load_from_memory_with_format(bytes, ImageFormat::Png) {
+        Ok(img) => {
 
-                // GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data
+            // GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data
 
-                context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                    WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap(), 0, WebGl2RenderingContext::RGBA.try_into().unwrap(), img.width().try_into().unwrap(), 
-                    img.height().try_into().unwrap(), 0, 
-                WebGl2RenderingContext::RGBA.try_into().unwrap(), WebGl2RenderingContext::UNSIGNED_BYTE.try_into().unwrap(), Some(img.as_bytes())).expect("msokg");
+            context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
+                WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap(), 0, WebGl2RenderingContext::RGBA.try_into().unwrap(), img.width().try_into().unwrap(), 
+                img.height().try_into().unwrap(), 0, 
+            WebGl2RenderingContext::RGBA.try_into().unwrap(), WebGl2RenderingContext::UNSIGNED_BYTE.try_into().unwrap(), Some(img.as_bytes())).expect("msokg");
 
-                context.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap());
-                console_log!("image loaded");
-            }
-            Err(_) => {
-                console_log!("input is not png");
-            }
+            context.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap());
+            console_log!("image loaded");
+        }
+        Err(_) => {
+            println!("input is not png");
         }
     }
 
-    {
-        tex2 = context.create_texture();
-        context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, tex2.as_ref());
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_S, WebGl2RenderingContext::REPEAT.try_into().unwrap());
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_WRAP_T, WebGl2RenderingContext::REPEAT.try_into().unwrap());
-    
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MIN_FILTER, WebGl2RenderingContext::LINEAR.try_into().unwrap());
-        context.tex_parameteri(WebGl2RenderingContext::TEXTURE_2D, WebGl2RenderingContext::TEXTURE_MAG_FILTER, WebGl2RenderingContext::LINEAR.try_into().unwrap());
-    
-        
-            let bytes = include_bytes!("../awesomeface.png");
-    
-            match image::load_from_memory_with_format(bytes, ImageFormat::Png) {
-                Ok(img) => {
-    
-                    // GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data
-    
-                    context.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_opt_u8_array(
-                        WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap(), 0, WebGl2RenderingContext::RGBA.try_into().unwrap(), img.width().try_into().unwrap(), 
-                        img.height().try_into().unwrap(), 0, 
-                    WebGl2RenderingContext::RGBA.try_into().unwrap(), WebGl2RenderingContext::UNSIGNED_BYTE.try_into().unwrap(), Some(img.as_bytes())).expect("msokg");
-    
-                    context.generate_mipmap(WebGl2RenderingContext::TEXTURE_2D.try_into().unwrap());
-                    console_log!("image loaded");
-                }
-                Err(_) => {
-                    console_log!("input is not png");
-                }
-            }
-        }
-
     context.uniform1i(Some(&context.get_uniform_location(&program, "texture1").unwrap()), 0);
-    context.uniform1i(Some(&context.get_uniform_location(&program, "texture2").unwrap()), 1);
 
     let mut app = Rc::new(RefCell::new(App {
-        position: vec![0.0, 0.0, 0.0],
-        tex1,
-        tex2
+        position: vec![0.0, 0.0, 0.0]
     }));
 
     let kb_app = app.clone();
@@ -201,7 +147,6 @@ pub fn start() -> Result<(), JsValue> {
 }
 
 fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, tick: u128, app: Rc<RefCell<App>>){
-    let aaa = app.borrow();
     let vertices: [f32; 32] = [
         0.5,  0.5, 0.0,   1.0, 0.0, 0.0,   1.0, 1.0, // top right
          0.5, -0.5, 0.0,   0.0, 1.0, 0.0,   1.0, 0.0, // bottom right
@@ -209,20 +154,11 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
         -0.5,  0.5, 0.0,   1.0, 1.0, 0.0,   0.0, 1.0  // top left 
     ];
 
-    let indives: [f32; 6] = [
-        0.0, 1.0, 3.0, // first triangle
-        1.0, 2.0, 3.0  // second triangle
-    ];
+    let position_attribute_location = context.get_attrib_location(&program, "position");
+    let vertexColorLocation = context.get_uniform_location(&program, "ourColor");
 
-    let position_attribute_location = context.get_attrib_location(&program, "aPos");
-    let color_attribute_location = context.get_attrib_location(&program, "aColor");
-    let tex_attribute_location = context.get_attrib_location(&program, "aTexCoord");
-
-    //let vertexColorLocation = context.get_uniform_location(&program, "ourColor");
-
-    // VBO --------------------
-    let vbo = context.create_buffer().ok_or("Failed to create buffer").unwrap();
-    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&vbo));
+    let buffer = context.create_buffer().ok_or("Failed to create buffer").unwrap();
+    context.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
 
     unsafe {
         let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
@@ -234,76 +170,31 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
         );
     }
 
-    // EBO ----------------------------
-    let ebo = context.create_buffer().ok_or("Failed to create buffer").unwrap();
-    context.bind_buffer(WebGl2RenderingContext::ELEMENT_ARRAY_BUFFER, Some(&ebo));
-    unsafe {
-        let positions_array_buf_view = js_sys::Float32Array::view(&indives);
-
-        context.buffer_data_with_array_buffer_view(
-            WebGl2RenderingContext::ARRAY_BUFFER,
-            &positions_array_buf_view,
-            WebGl2RenderingContext::STATIC_DRAW,
-        );
-    }
-
-    // VAO ------------------------
     let vao = context
         .create_vertex_array()
         .ok_or("Could not create vertex array object").unwrap();
 
     context.bind_vertex_array(Some(&vao));
 
-     // position attribute
     context.vertex_attrib_pointer_with_i32(
         position_attribute_location as u32,
         3,
         WebGl2RenderingContext::FLOAT,
         false,
-        8 * 4,
+        0,
         0,
     );
     context.enable_vertex_attrib_array(position_attribute_location as u32);
-    // color attribute
-    context.vertex_attrib_pointer_with_i32(
-        color_attribute_location as u32,
-        3,
-        WebGl2RenderingContext::FLOAT,
-        false,
-        8 * 4,
-        3 * 4,
-    );
-    context.enable_vertex_attrib_array(color_attribute_location as u32);
 
-    // tex coord attribute
-    context.vertex_attrib_pointer_with_i32(
-        tex_attribute_location as u32,
-        3,
-        WebGl2RenderingContext::FLOAT,
-        false,
-        8 * 4,
-        6 * 4,
-    );
-    context.enable_vertex_attrib_array(tex_attribute_location as u32);
-
-    context.clear_color(0.0, 0.0, 0.0, 1.0);
-    context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
-
-    context.active_texture(WebGl2RenderingContext::TEXTURE0);
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, aaa.tex1.as_ref());
-
-    context.active_texture(WebGl2RenderingContext::TEXTURE1);
-    context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, aaa.tex2.as_ref());
-
-    /* 
     let red = (tick as f32 / 4.0).sin();
     let green = (tick as f32 / 8.0).sin();
-    let blue = (tick as f32 / 16.0).sin();*/
+    let blue = (tick as f32 / 16.0).sin();
 
+    context.uniform4f(Some(&vertexColorLocation.unwrap()), red, green, blue, 1.0);
     context.bind_vertex_array(Some(&vao));
-    context.draw_elements_with_i32(WebGl2RenderingContext::TRIANGLES, 4, WebGl2RenderingContext::UNSIGNED_INT, 0);
 
-    //context.uniform4f(Some(&vertexColorLocation.unwrap()), red, green, blue, 1.0);
+    let vert_count = (vertices.len() / 3) as i32;
+    draw(&context, vert_count);
 }
 
 fn main_loop(program: WebGlProgram, mut context: WebGl2RenderingContext, app: Rc<RefCell<App>>){
@@ -324,7 +215,7 @@ fn draw(context: &WebGl2RenderingContext, vert_count: i32) {
     context.clear_color(0.0, 0.0, 0.0, 1.0);
     context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-    context.draw_elements_with_i32(WebGl2RenderingContext::TRIANGLES, 3, WebGl2RenderingContext::UNSIGNED_INT, 0);
+    context.draw_arrays(WebGl2RenderingContext::TRIANGLES, 0, vert_count);
 }
 
 fn window() -> web_sys::Window {
