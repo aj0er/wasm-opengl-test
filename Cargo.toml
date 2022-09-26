@@ -14,6 +14,11 @@ default = ["console_error_panic_hook"]
 js-sys = "0.3.59"
 wasm-bindgen = "0.2.63"
 image = "0.24.3"
+<<<<<<< HEAD
+nalgebra = "0.31.1"
+nalgebra-glm = "0.17.0"
+=======
+>>>>>>> 325e32a44405e9ef1de28d29bffebd91e2120781
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
