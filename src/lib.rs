@@ -123,7 +123,7 @@ pub fn start() -> Result<(), JsValue> {
     }    
 
     let app = Rc::new(RefCell::new(App {
-        position: vec![0.0, 0.0, 0.0],
+        position: vec![0.0, 0.0, -10.0],
         sample_texture,
     }));
 
