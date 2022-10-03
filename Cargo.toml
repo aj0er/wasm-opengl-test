@@ -47,7 +47,8 @@ features = [
   'WebGlShader',
   'WebGlTexture',
   'Window',
-  'KeyboardEvent'
+  'KeyboardEvent',
+  'MouseEvent'
 ]
 
 [profile.release]

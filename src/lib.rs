@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use image::ImageFormat;
 use na::Matrix4;
+use na::Point3;
 use na::Unit;
 use na::UnitQuaternion;
 use wasm_bindgen::prelude::*;
@@ -35,8 +36,17 @@ macro_rules! console_log {
 }
 
 struct App {
-    pub position: Vec<f32>,
+    pub camera: Camera,
     pub sample_texture: Option<WebGlTexture>,
+}
+
+struct Camera {
+    pub pos: Vector3<f32>,
+    pub front: Vector3<f32>,
+    pub up: Vector3<f32>,
+
+    pub yaw: f32,
+    pub pitch: f32,
 }
 
 #[wasm_bindgen(start)]
@@ -46,6 +56,8 @@ pub fn start() -> Result<(), JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let canvas = document.get_element_by_id("canvas").unwrap();
     let canvas: web_sys::HtmlCanvasElement = canvas.dyn_into::<web_sys::HtmlCanvasElement>()?;
+
+    canvas.request_pointer_lock();
 
     let context = canvas
         .get_context("webgl2")?
@@ -123,33 +135,76 @@ pub fn start() -> Result<(), JsValue> {
     }    
 
     let app = Rc::new(RefCell::new(App {
-        position: vec![0.0, 0.0, -10.0],
+        camera: Camera {
+            pos: vector![0.0, 0.0, 3.0],
+            front: vector![0.0, 0.0, -1.0],
+            up: vector![0.0, 1.0, 0.0],
+
+            yaw: -90.0,
+            pitch: 0.0
+        },
         sample_texture,
     }));
 
     let event_app = app.clone();
-    let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
-        let pos = &mut event_app.borrow_mut().position;
+
+    let camera_speed = 0.05;
+    let keyboard_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
+        let camera = &mut event_app.borrow_mut().camera;
 
         match event.key().as_str() {
             "w" => {
-                (*pos)[2] += 0.05;
+                (*camera).pos += camera_speed * camera.front;
             }
             "s" => {
-                (*pos)[2] -= 0.05;
+                (*camera).pos -= camera_speed * camera.front;
             }
             "a" => {
-                (*pos)[0] += 0.05;
+                (*camera).pos -= camera.front.cross(&camera.up).normalize() * camera_speed;
             }
             "d" => {
-                (*pos)[0] -= 0.05;
+                (*camera).pos += camera.front.cross(&camera.up).normalize() * camera_speed;
             }
             _ => {}
         }
     });
 
-    window().add_event_listener_with_callback("keydown", closure.as_ref().unchecked_ref()).unwrap();
-    closure.forget();     
+    let mouse_app = app.clone();
+    let mouse_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+        if event.buttons() != 1 {
+            return;
+        }
+
+        let camera = &mut mouse_app.borrow_mut().camera;
+
+        let xoffset = event.movement_x() as f32 * 0.1;
+        let yoffset = event.movement_y() as f32 * 0.1; 
+
+        camera.yaw   += xoffset;
+        camera.pitch -= yoffset;
+
+        if camera.pitch > 89.0 {
+            camera.pitch = 89.0;
+        }
+
+        if camera.pitch < -89.0 {
+            camera.pitch = -89.0;
+        }
+
+        let direction: Vector3<f32> = vector![
+            camera.yaw.to_radians().cos() * camera.pitch.to_radians().cos(),
+            camera.pitch.to_radians().sin(), 
+            camera.yaw.to_radians().sin() * camera.pitch.to_radians().cos()
+        ];
+
+        camera.front = glm::normalize(&direction);
+    });
+
+    window().add_event_listener_with_callback("keydown", keyboard_callback.as_ref().unchecked_ref()).unwrap();
+    window().add_event_listener_with_callback("mousemove", mouse_callback.as_ref().unchecked_ref()).unwrap();
+
+    keyboard_callback.forget();     
+    mouse_callback.forget();
 
     main_loop(program, context, app.clone());
     Ok(())
@@ -159,6 +214,7 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
     let app = app_rc.borrow();
     let cube_positions = [
         vector![ 0.0,  0.0,  0.0], 
+        /*
         vector![ 2.0,  5.0, -15.0], 
         vector![-1.5, -2.2, -2.5],  
         vector![-3.8, -2.0, -12.3],  
@@ -168,6 +224,7 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
         vector![ 1.5,  2.0, -2.5], 
         vector![ 1.5,  0.2, -1.5], 
         vector![-1.3,  1.0, -1.5]  
+        */
     ];
 
     let vertices = [
@@ -263,8 +320,11 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
     let mut model = Matrix4::from_diagonal_element(1.0);
     model = UnitQuaternion::from_axis_angle(&Unit::new_unchecked(Vector3::new(0.5, 1.0, 0.0)), -55.0_f32.to_radians() * (tick as f32 / 30.0)).to_homogeneous() * model;
 
-    let mut view = Matrix4::from_diagonal_element(1.0);
-    view = view.prepend_translation(&vector![app.position[0], 0.0, app.position[2]]);
+    let mut view = Matrix4::look_at_rh(&Point3::from(app.camera.pos), &Point3::from(app.camera.pos + app.camera.front), &app.camera.up);
+
+    /*
+    let mut view = Matrix4::from_diagonal_element(1.0);*/
+    //view = view.prepend_translation(&vector![app.position[0], 0.0, app.position[2]]);
 
     let projection = glm::perspective(800.0 / 600.0, 45.0_f32.to_radians(), 0.1, 100.0);
 
@@ -287,7 +347,7 @@ fn main_callback(program: &WebGlProgram, context: &mut WebGl2RenderingContext, t
         let translation = cube_positions[i];
         let mut model = Matrix4::from_diagonal_element(1.0);
         model = model.prepend_translation(&translation);
-        model = UnitQuaternion::from_axis_angle(&Unit::new_unchecked(Vector3::new(0.0, 0.5, 0.0)), -55.0_f32.to_radians() * (tick as f32 / 30.0 as f32)).to_homogeneous() * model;
+        //model = UnitQuaternion::from_axis_angle(&Unit::new_unchecked(Vector3::new(0.0, 0.5, 0.0)), -55.0_f32.to_radians() * (tick as f32 / 30.0 as f32)).to_homogeneous() * model;
 
         let model_loc = context.get_uniform_location(program, "model");
         context.uniform_matrix4fv_with_f32_array(model_loc.as_ref(), false, model.data.as_slice());

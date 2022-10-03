@@ -1,8 +1,17 @@
 import * as wasm from "wasmtest";
 
-const w = window.innerWidth;
-const h = window.innerHeight;
+const canvas = document.getElementById("canvas");
 
-document.getElementById("canvas").width  = w;
-document.getElementById("canvas").height = h;
-wasm.start();
+document.getElementById("start").addEventListener("click", () => {
+    canvas.requestPointerLock();
+    start.style.display = "none";
+    canvas.style.display = "block";
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    canvas.width  = w;
+    canvas.height = h;
+
+    wasm.start();
+});
