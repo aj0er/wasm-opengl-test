@@ -1,7 +1,7 @@
 use std::cell::RefCell;
-use std::io::Read;
+
 use std::panic;
-use std::path::Path;
+
 use std::rc::Rc;
 
 use image::ImageFormat;
@@ -9,9 +9,7 @@ use na::Matrix4;
 use na::Point3;
 use na::Rotation;
 use na::Rotation3;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_json::json;
+
 use shader::Shader;
 use texture::load_texture;
 use wasm_bindgen::prelude::*;
@@ -20,10 +18,6 @@ use web_sys::KeyboardEvent;
 use web_sys::MouseEvent;
 use web_sys::WebGlTexture;
 use web_sys::{WebGl2RenderingContext};
-
-use std::fs::OpenOptions;
-use std::fs::File;
-use std::io::Write;
 
 extern crate nalgebra_glm as glm;
 
@@ -123,13 +117,6 @@ struct Cube {
 }
 
 impl Cube {
-    fn new(translation: Vector3<f32>) -> Self {
-        return Self {
-            translation,
-            rotation: vector![0.0, 0.0, 0.0]
-        }
-    }
-
     fn get_rotated_translation(&self) -> Rotation<f32, 3> {
         return Rotation3::new(self.rotation);
     }
@@ -255,16 +242,18 @@ fn on_key(event: KeyboardEvent, app: &mut App){
         }
         "e" => {
 
+            /*
             let direction: Vector3<f32> = vector![
-        camera.yaw.to_radians().cos() * camera.pitch.to_radians().cos(),
-        camera.pitch.to_radians().sin(), 
-        camera.yaw.to_radians().sin() * camera.pitch.to_radians().cos()
-    ];
+                camera.yaw.to_radians().cos() * camera.pitch.to_radians().cos(),
+                camera.pitch.to_radians().sin(), 
+                camera.yaw.to_radians().sin() * camera.pitch.to_radians().cos()
+            ];
+
             let rot = Rotation3::new(direction);
-            let transformed = rot.transform_vector(&vector![0.0, 0.0, -3.0]);
+            let _transformed = rot.transform_vector(&vector![0.0, 0.0, -3.0]);*/
 
             let cube = Cube {
-                translation: rot.transform_vector(&(camera.pos + vector![0.0, 0.0, -3.0])),
+                translation: camera.pos + vector![0.0, 0.0, -3.0],
                 rotation: vector![0.0, 0.0, 0.0]
             };
 
@@ -274,7 +263,7 @@ fn on_key(event: KeyboardEvent, app: &mut App){
     }
 }
 
-fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, tick: u128, app_rc: Rc<RefCell<App>>){
+fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, _tick: u128, app_rc: Rc<RefCell<App>>){
     let app = app_rc.borrow();
 
     let position_attribute_location = context.get_attrib_location(&shader.program, "aPos");
@@ -343,7 +332,7 @@ fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, tick: u128, app_r
     let projection_loc = context.get_uniform_location(&shader.program, "projection");
     context.uniform_matrix4fv_with_f32_array(projection_loc.as_ref(), false, projection.data.as_slice());
 
-    context.clear_color(0.0, 0.0, 1.589, 1.0);
+    context.clear_color(0.0, 0.0, 1.589, 0.4);
     context.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT | WebGl2RenderingContext::DEPTH_BUFFER_BIT);
 
     context.bind_texture(WebGl2RenderingContext::TEXTURE_2D, app.sample_texture.as_ref());
