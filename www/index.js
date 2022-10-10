@@ -3,7 +3,6 @@ import * as wasm from "wasmtest";
 const canvas = document.getElementById("canvas");
 
 document.getElementById("start").addEventListener("click", () => {
-    canvas.requestPointerLock();
     start.style.display = "none";
     canvas.style.display = "block";
 
