@@ -113,7 +113,8 @@ const CUBE_MODEL: [f32; 180] = [
 
 struct Cube {
     translation: Vector3<f32>,
-    rotation: Vector3<f32>
+    rotation: Vector3<f32>,
+    party: bool,
 }
 
 impl Cube {
@@ -159,12 +160,12 @@ pub fn start() -> Result<(), JsValue> {
     }));
 
     let event_app = app.clone();
-    let keyboard_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| {
+    let keyboard_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::KeyboardEvent| { // Tangentbordsevent
         on_key(event, &mut event_app.borrow_mut());
     });
 
     let mouse_app = app.clone();
-    let mouse_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| {
+    let mouse_callback = Closure::<dyn FnMut(_)>::new(move |event: web_sys::MouseEvent| { // Musevent
         on_mouse(event, &mut mouse_app.borrow_mut().camera);
     });
 
@@ -183,7 +184,8 @@ fn load_world() -> World {
         cubes: vec![
             Cube {
                translation: vector![0.0, 2.0, 0.0],
-               rotation: vector![0.0, std::f32::consts::PI / 4.0, 1.0]
+               rotation: vector![0.0, std::f32::consts::PI / 4.0, 1.0],
+               party: false,
             }
         ]
     };
@@ -234,11 +236,20 @@ fn on_key(event: KeyboardEvent, app: &mut App){
         "d" => {
             (*camera).pos += camera.front.cross(&camera.up).normalize() * CAMERA_SPEED;
         }
-        " " => {
+        " " => { // Space-tangenten
             (*camera).pos += CAMERA_SPEED * camera.up;
         }
         "Shift" => {
             (*camera).pos -= CAMERA_SPEED * camera.up;
+        },
+        "p" => {
+            let cube = Cube {
+                translation: camera.pos + vector![0.0, 0.0, -3.0],
+                rotation: vector![0.0, 0.0, 0.0],
+                party: true,
+            };
+
+            (*app).world.cubes.push(cube);
         }
         "e" => {
 
@@ -254,7 +265,8 @@ fn on_key(event: KeyboardEvent, app: &mut App){
 
             let cube = Cube {
                 translation: camera.pos + vector![0.0, 0.0, -3.0],
-                rotation: vector![0.0, 0.0, 0.0]
+                rotation: vector![0.0, 0.0, 0.0],
+                party: false,
             };
 
             (*app).world.cubes.push(cube);
@@ -263,7 +275,7 @@ fn on_key(event: KeyboardEvent, app: &mut App){
     }
 }
 
-fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, _tick: u128, app_rc: Rc<RefCell<App>>){
+fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, tick: u128, app_rc: Rc<RefCell<App>>){
     let app = app_rc.borrow();
 
     let position_attribute_location = context.get_attrib_location(&shader.program, "aPos");
@@ -339,11 +351,16 @@ fn draw(shader: &Shader, context: &mut WebGl2RenderingContext, _tick: u128, app_
     context.bind_vertex_array(Some(&vao));
 
     for i in 0..app.world.cubes.len() {
-        let translation = app.world.cubes[i].translation;
+        let cube = &app.world.cubes[i];
+        let translation = cube.translation;
         let mut model = Matrix4::from_diagonal_element(1.0);
         model = model.prepend_translation(&translation);
-        //model = model * Rotation3::new(vector![0.0, 0.0, (tick as f32) / 30.0]).to_homogeneous();
-        model = model * app.world.cubes[i].get_rotated_translation().to_homogeneous();
+
+        if cube.party {
+            model = model * Rotation3::new(vector![0.0, 0.0, (tick as f32) / 50.0]).to_homogeneous();
+        } else {
+            model = model * cube.get_rotated_translation().to_homogeneous();
+        }
 
         let model_loc = context.get_uniform_location(&shader.program, "model");
         context.uniform_matrix4fv_with_f32_array(model_loc.as_ref(), false, model.data.as_slice());
